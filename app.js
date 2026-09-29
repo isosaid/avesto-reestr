@@ -1,5 +1,6 @@
 // Феҳристи ҷамъиятҳои «Авесто Гуруҳ» — веб-клиент Supabase
 import { CONFIG } from './config.js';
+import { makeLocalApi } from './local.js';
 
 const LIB = {
   supabase: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm',
@@ -37,6 +38,10 @@ const I18N = {
     chkNone: 'Ҳама санҷишҳо гузаштанд', aTime: 'Вақт', aUser: 'Корбар', aAction: 'Амал', aObject: 'Объект', aFields: 'Майдонҳо', role: 'Нақш',
     usersHint: 'Танҳо корбарони ин рӯйхат феҳристро мебинанд. Корбари навро аввал дар Supabase → Authentication → Users даъват кунед, баъд почтаашро ин ҷо илова кунед.', addMember: 'Дастрасӣ додан',
     rViewer: 'тамошобин', rEditor: 'муҳаррир', rAdmin: 'админ', copied: 'Нусха гирифта шуд', loadErr: 'Хатои боркунӣ', required: 'Майдонҳои ҳатмӣ: №, ном, РМА (9 рақам)',
+    welcomeTitle: 'Феҳристи ҷамъиятҳо', welcomeSub: 'Файли Excel-и феҳристро кашед — ҳамроҳ бо PDF-и иқтибосҳо (ихтиёрӣ).',
+    welcomeDrop: '<b>Excel (.xlsx) ва PDF-ҳоро ба ин ҷо кашед</b> ё пахш кунед', welcomePrivacy: 'Маълумот танҳо дар ҳамин браузер нигоҳ дошта мешавад ва ба ҳеҷ сервер фиристода намешавад.',
+    welcomeNeedXlsx: 'Файли Excel (.xlsx) лозим аст', localMode: 'Режими локалӣ', localHint: 'маълумот танҳо дар ин браузер', reimport: 'Навсозӣ аз Excel',
+    clearData: 'Тоза кардани маълумот', confirmClear: 'Ҳама маълумот ва PDF-ҳо аз ин браузер нест мешаванд. Боварӣ доред? Бори дигар пахш кунед.', imported: 'Бор шуд: {0} ҷамъият', reading: 'Хондан…',
     themeToggle: 'Мавзӯъ', legendFull: '100% дар гурӯҳ', legendPartial: '50–99%', legendMinor: 'то 50%', groupOwned: 'ҳиссаи Авесто Гуруҳ',
   },
   ru: {
@@ -66,6 +71,10 @@ const I18N = {
     chkNone: 'Все проверки пройдены', aTime: 'Время', aUser: 'Пользователь', aAction: 'Действие', aObject: 'Объект', aFields: 'Поля', role: 'Роль',
     usersHint: 'Реестр видят только пользователи из этого списка. Нового сначала пригласите в Supabase → Authentication → Users, затем добавьте его почту здесь.', addMember: 'Дать доступ',
     rViewer: 'просмотр', rEditor: 'редактор', rAdmin: 'админ', copied: 'Скопировано', loadErr: 'Ошибка загрузки', required: 'Обязательно: №, название, РМА (9 цифр)',
+    welcomeTitle: 'Реестр юрлиц', welcomeSub: 'Перетащите Excel-файл реестра — вместе с PDF выписок (необязательно).',
+    welcomeDrop: '<b>Перетащите сюда Excel (.xlsx) и PDF</b> или нажмите', welcomePrivacy: 'Данные хранятся только в этом браузере и никуда не отправляются.',
+    welcomeNeedXlsx: 'Нужен файл Excel (.xlsx)', localMode: 'Локальный режим', localHint: 'данные только в этом браузере', reimport: 'Обновить из Excel',
+    clearData: 'Очистить данные', confirmClear: 'Все данные и PDF будут удалены из этого браузера. Точно? Нажмите ещё раз.', imported: 'Загружено: {0} компаний', reading: 'Чтение…',
     themeToggle: 'Тема', legendFull: '100% в группе', legendPartial: '50–99%', legendMinor: 'до 50%', groupOwned: 'доля Авесто Гуруҳ',
   },
 };
@@ -152,14 +161,18 @@ const IC = {
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
   moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
   out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 12H3m0 0 4-4m-4 4 4 4M13 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/></svg>',
   mark: '<svg viewBox="0 0 32 32" width="22" height="22"><path d="M9 23V9h14v14M9 14h14M9 18.5h14M14 9v14" stroke="#34d399" stroke-width="2" fill="none"/></svg>',
   alert: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0"/></svg>',
 };
 
 /* ================= API (Supabase) ================= */
+// Без ключей Supabase (или с ?local) сайт работает локально: Excel + PDF хранятся в IndexedDB браузера
+const isLocalMode = () => CONFIG.MODE === 'local' || /YOUR-PROJECT/.test(CONFIG.SUPABASE_URL) || new URLSearchParams(location.search).has('local');
 async function makeApi() {
   if (window.__MOCK_API__) return window.__MOCK_API__;
+  if (isLocalMode()) return makeLocalApi(async () => { if (!window.XLSX) await loadScript(LIB.xlsx); return window.XLSX; });
   const { createClient } = await import(LIB.supabase);
   const sb = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   const ok = r => { if (r.error) throw r.error; return r.data; };
@@ -271,9 +284,7 @@ function filtered() {
 async function boot() {
   applyTheme();
   try { S.api = await makeApi(); } catch (e) { $('#app').innerHTML = `<div class="boot"><div class="form-error">${esc(t('loadErr'))}: ${esc(e.message)}</div></div>`; return; }
-  if (!window.__MOCK_API__ && CONFIG.SUPABASE_URL.includes('YOUR-PROJECT')) {
-    $('#app').innerHTML = `<div class="login"><div class="login-card"><div class="brand-mark">${IC.mark}</div><h1>config.js</h1><p>Укажите SUPABASE_URL и SUPABASE_ANON_KEY в <code>web/config.js</code>.</p></div></div>`; return;
-  }
+  if (S.api.local) { if (S.api.hasData()) { S.user = await S.api.getUser(); await enter(); } else renderWelcome(); return; }
   let recovering = false;
   S.api.onAuth(async (ev, user) => {
     if (ev === 'PASSWORD_RECOVERY') { recovering = true; renderRecovery(); return; }
@@ -288,6 +299,35 @@ function langSwitch(cls = '') {
   return `<div class="lang ${cls}"><button data-lang="tg" class="${lang === 'tg' ? 'on' : ''}">ТҶ</button><button data-lang="ru" class="${lang === 'ru' ? 'on' : ''}">РУ</button></div>`;
 }
 function bindLang(root, rerender) { $$('[data-lang]', root).forEach(b => b.onclick = () => { lang = b.dataset.lang; store.set('reg.lang', lang); document.documentElement.lang = lang === 'ru' ? 'ru' : 'tg'; rerender(); }); }
+
+function renderWelcome(msg = '') {
+  $('#app').innerHTML = `
+  <div class="login"><div class="login-card" style="max-width:520px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div class="brand-mark">${IC.mark}</div>${langSwitch()}</div>
+    <h1>${esc(t('welcomeTitle'))}</h1><p>${esc(t('welcomeSub'))}</p>
+    <label class="drop" id="wdrop">${t('welcomeDrop')}<div class="muted" style="font-size:12px;margin-top:6px">.xlsx + .pdf</div><input type="file" id="wfile" accept=".xlsx,.xls,application/pdf,.pdf" multiple hidden></label>
+    <div class="form-error" id="werr">${esc(msg)}</div>
+    <div class="login-foot"><span>🔒 ${esc(t('welcomePrivacy'))}</span></div>
+  </div></div>`;
+  $$('.login-card .lang button').forEach(b => b.style.color = b.classList.contains('on') ? '#fff' : 'var(--text-2)');
+  $('.login-card .lang').style.borderColor = 'var(--line-strong)';
+  bindLang($('#app'), () => renderWelcome());
+  const drop = $('#wdrop'), inp = $('#wfile');
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); localImport([...e.dataTransfer.files]); };
+  inp.onchange = () => localImport([...inp.files]);
+}
+async function localImport(files, fromShell) {
+  const xlsx = files.find(f => /\.xlsx?$/i.test(f.name));
+  const pdfs = files.filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  if (!xlsx && !S.api.hasData()) { const e = $('#werr'); if (e) e.textContent = t('welcomeNeedXlsx'); return; }
+  try {
+    if (xlsx) { const r = await S.api.importExcel(xlsx); toast(t('imported', r.count)); }
+    if (fromShell) await reload(); else { S.user = await S.api.getUser(); await enter(); }
+    if (pdfs.length) openImport(pdfs, true);
+  } catch (e) { const el = $('#werr'); if (el) el.textContent = e.message; else toast(e.message, true); }
+}
 
 function renderLogin(msg = '') {
   $('#app').innerHTML = `
@@ -336,7 +376,7 @@ async function reload() { prepare(await S.api.loadAll()); update(); if (S.openId
 function renderShell() {
   document.documentElement.lang = lang === 'ru' ? 'ru' : 'tg';
   document.title = `${t('appTitle')} · Авесто Гуруҳ`;
-  const who = S.profile.full_name || S.profile.email || S.user.email;
+  const who = S.api.local ? t('localMode') : (S.profile.full_name || S.profile.email || S.user.email);
   const tabs = [['registry', t('tabRegistry')], ['tree', t('tabTree')], ['checks', t('tabChecks')]];
   if (canEdit()) tabs.push(['audit', t('tabAudit')]);
   if (isAdmin()) tabs.push(['users', t('tabUsers')]);
@@ -348,8 +388,8 @@ function renderShell() {
     <div class="spacer"></div>
     <div class="top-actions">${langSwitch()}
       <button class="icon-btn" id="theme" title="${esc(t('themeToggle'))}">${IC.moon}</button>
-      <div class="user-chip"><div class="avatar">${esc(initials(who))}</div><div class="nm"><div style="font-weight:600;line-height:1.1">${esc(who)}</div><div class="role-badge">${esc(t('r' + S.profile.role[0].toUpperCase() + S.profile.role.slice(1)))}</div></div>
-      <button class="icon-btn" id="logout" title="${esc(t('logout'))}">${IC.out}</button></div>
+      <div class="user-chip"><div class="avatar">${esc(initials(who))}</div><div class="nm"><div style="font-weight:600;line-height:1.1">${esc(who)}</div><div class="role-badge">${S.api.local ? esc(t('localHint')) : esc(t('r' + S.profile.role[0].toUpperCase() + S.profile.role.slice(1)))}</div></div>
+      ${S.api.local ? `<button class="icon-btn" id="clear" title="${esc(t('clearData'))}">${IC.trash}</button>` : `<button class="icon-btn" id="logout" title="${esc(t('logout'))}">${IC.out}</button>`}</div>
     </div></div></header>
   <main class="page">
     <section class="kpis" id="kpis"></section>
@@ -360,6 +400,7 @@ function renderShell() {
         <span class="result-count" id="rc"></span>
         <div class="spacer"></div>
         <button class="btn" id="exp">${IC.xls}${esc(t('exportXlsx'))}</button>
+        ${S.api.local ? `<button class="btn" id="reimp">${IC.xls}${esc(t('reimport'))}</button><input type="file" id="reimpf" accept=".xlsx,.xls,.pdf" multiple hidden>` : ''}
         ${canEdit() ? `<button class="btn" id="imp">${IC.up}${esc(t('importPdf'))}</button><button class="btn primary" id="newc">${IC.plus}${esc(t('newCompany'))}</button>` : ''}
       </div>
       <div class="chips" id="chips"></div>
@@ -369,7 +410,9 @@ function renderShell() {
   </main>`;
   bindLang($('.topbar'), () => { renderShell(); if (S.openId) renderDrawer(); });
   $$('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set('reg.tab', S.tab); $$('[data-tab]').forEach(x => x.classList.toggle('active', x === b)); update(); });
-  $('#logout').onclick = async () => { await S.api.signOut(); S.user = null; renderLogin(); };
+  if (S.api.local) $('#clear').onclick = async e => { const b = e.currentTarget; if (!b.dataset.armed) { b.dataset.armed = 1; toast(t('confirmClear'), true); setTimeout(() => delete b.dataset.armed, 5000); return; } await S.api.clear(); closeDrawer(); renderWelcome(); };
+  else $('#logout').onclick = async () => { await S.api.signOut(); S.user = null; renderLogin(); };
+  if (S.api.local) { $('#reimp').onclick = () => $('#reimpf').click(); $('#reimpf').onchange = e => { localImport([...e.target.files], true); e.target.value = ''; }; }
   $('#theme').onclick = () => { const cur = store.get('reg.theme', ''); const next = cur === 'dark' ? 'light' : cur === 'light' ? '' : 'dark'; store.set('reg.theme', next); applyTheme(); };
   const q = $('#q');
   q.oninput = () => { S.q = q.value; S.terms = normName(S.q).split(' ').filter(Boolean); update(); };
@@ -552,7 +595,7 @@ async function openPdf(c, ex) {
   try {
     const nice = `${c.code === '0' ? '0' : c.code}. ${c.name.replace(/["“”«»]/g, '')} ${fmtDate(ex.extract_date)}.pdf`;
     const [url, dl] = await Promise.all([S.api.signedUrl(ex.storage_path), S.api.signedUrl(ex.storage_path, nice)]);
-    $('#pnew', m).href = url; $('#pdl', m).href = dl;
+    $('#pnew', m).href = url; $('#pdl', m).href = dl; $('#pdl', m).download = nice;
     $('#pload', m).outerHTML = `<iframe class="pdf-frame" src="${esc(url)}" title="PDF"></iframe>`;
   } catch (e) { $('#pload', m).innerHTML = `<div class="form-error">${esc(e.message)}</div>`; }
 }
@@ -723,7 +766,7 @@ export function parseExtractFileName(name) {
   const date = ds ? `${ds[3]}-${ds[2].padStart(2, '0')}-${ds[1].padStart(2, '0')}` : null;
   return { code, date };
 }
-function openImport() {
+function openImport(initial = [], autoUpload = false) {
   const items = [];
   const m = modal(`<div class="modal-card"><div class="modal-head"><span style="color:var(--accent)">${IC.up}</span><h3>${esc(t('impTitle'))}</h3><button class="icon-btn" data-close>${IC.x}</button></div>
     <div class="modal-body"><label class="drop" id="drop">${t('impDrop')}<div class="muted" style="font-size:12px;margin-top:6px">${esc(t('impHint'))}</div><input type="file" id="impf" accept="application/pdf,.pdf" multiple hidden></label>
@@ -735,6 +778,7 @@ function openImport() {
   drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); add([...e.dataTransfer.files]); };
   inp.onchange = () => { add([...inp.files]); inp.value = ''; };
   const byRma = new Map(S.companies.map(c => [c.rma, c]));
+  if (initial.length) setTimeout(async () => { await add(initial); if (autoUpload && items.some(ready)) $('#impgo', m).click(); }, 0);
   async function add(files) {
     for (const f of files.filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf')) {
       const it = { file: f, st: 'reading', ...parseExtractFileName(f.name) };
