@@ -2,6 +2,9 @@
 // Project Settings → API → Project URL и anon public key.
 // anon-ключ публичный по замыслу Supabase: данные защищены RLS и входом по логину.
 export const CONFIG = {
+  // Google Sheets: URL веб-приложения Apps Script (…/exec). Если задан — данные берутся из Google Таблицы.
+  SHEETS_URL: '',
+
   SUPABASE_URL: 'https://YOUR-PROJECT-REF.supabase.co',
   SUPABASE_ANON_KEY: 'YOUR-ANON-PUBLIC-KEY',
 

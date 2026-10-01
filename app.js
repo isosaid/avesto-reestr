@@ -1,6 +1,7 @@
 // Феҳристи ҷамъиятҳои «Авесто Гуруҳ» — веб-клиент Supabase
 import { CONFIG } from './config.js';
 import { makeLocalApi } from './local.js';
+import { makeSheetsApi } from './sheets.js';
 
 const LIB = {
   supabase: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm',
@@ -42,6 +43,7 @@ const I18N = {
     welcomeDrop: '<b>Excel (.xlsx) ва PDF-ҳоро ба ин ҷо кашед</b> ё пахш кунед', welcomePrivacy: 'Маълумот танҳо дар ҳамин браузер нигоҳ дошта мешавад ва ба ҳеҷ сервер фиристода намешавад.',
     welcomeNeedXlsx: 'Файли Excel (.xlsx) лозим аст', localMode: 'Режими локалӣ', localHint: 'маълумот танҳо дар ин браузер', reimport: 'Навсозӣ аз Excel',
     clearData: 'Тоза кардани маълумот', confirmClear: 'Ҳама маълумот ва PDF-ҳо аз ин браузер нест мешаванд. Боварӣ доред? Бори дигар пахш кунед.', imported: 'Бор шуд: {0} ҷамъият', reading: 'Хондан…',
+    accessKey: 'Калиди дастрасӣ', keyHint: 'Калидро аз администратор гиред', pdfFolder: 'Папкаи PDF', openSheet: 'Google Sheets',
     themeToggle: 'Мавзӯъ', legendFull: '100% дар гурӯҳ', legendPartial: '50–99%', legendMinor: 'то 50%', groupOwned: 'ҳиссаи Авесто Гуруҳ',
   },
   ru: {
@@ -75,6 +77,7 @@ const I18N = {
     welcomeDrop: '<b>Перетащите сюда Excel (.xlsx) и PDF</b> или нажмите', welcomePrivacy: 'Данные хранятся только в этом браузере и никуда не отправляются.',
     welcomeNeedXlsx: 'Нужен файл Excel (.xlsx)', localMode: 'Локальный режим', localHint: 'данные только в этом браузере', reimport: 'Обновить из Excel',
     clearData: 'Очистить данные', confirmClear: 'Все данные и PDF будут удалены из этого браузера. Точно? Нажмите ещё раз.', imported: 'Загружено: {0} компаний', reading: 'Чтение…',
+    accessKey: 'Ключ доступа', keyHint: 'Ключ выдаёт администратор', pdfFolder: 'Папка PDF', openSheet: 'Google Sheets',
     themeToggle: 'Тема', legendFull: '100% в группе', legendPartial: '50–99%', legendMinor: 'до 50%', groupOwned: 'доля Авесто Гуруҳ',
   },
 };
@@ -169,9 +172,10 @@ const IC = {
 
 /* ================= API (Supabase) ================= */
 // Без ключей Supabase (или с ?local) сайт работает локально: Excel + PDF хранятся в IndexedDB браузера
-const isLocalMode = () => CONFIG.MODE === 'local' || /YOUR-PROJECT/.test(CONFIG.SUPABASE_URL) || new URLSearchParams(location.search).has('local');
+const isLocalMode = () => CONFIG.MODE === 'local' || !CONFIG.SUPABASE_URL || /YOUR-PROJECT/.test(CONFIG.SUPABASE_URL) || new URLSearchParams(location.search).has('local');
 async function makeApi() {
   if (window.__MOCK_API__) return window.__MOCK_API__;
+  if (CONFIG.SHEETS_URL && !new URLSearchParams(location.search).has('local')) return makeSheetsApi(CONFIG.SHEETS_URL);
   if (isLocalMode()) return makeLocalApi(async () => { if (!window.XLSX) await loadScript(LIB.xlsx); return window.XLSX; });
   const { createClient } = await import(LIB.supabase);
   const sb = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
@@ -334,21 +338,21 @@ function renderLogin(msg = '') {
   <div class="login"><form class="login-card" id="login-form" autocomplete="on">
     <div style="display:flex;justify-content:space-between;align-items:center"><div class="brand-mark">${IC.mark}</div>${langSwitch()}</div>
     <h1>${esc(t('appTitle'))}</h1><p>${esc(t('loginSub'))}</p>
-    <div class="field"><label for="em">${esc(t('email'))}</label><input class="input" id="em" type="email" autocomplete="username" required></div>
-    <div class="field"><label for="pw">${esc(t('password'))}</label><input class="input" id="pw" type="password" autocomplete="current-password" required></div>
+    ${S.api.keyLogin ? '' : `<div class="field"><label for="em">${esc(t('email'))}</label><input class="input" id="em" type="email" autocomplete="username" required></div>`}
+    <div class="field"><label for="pw">${esc(S.api.keyLogin ? t('accessKey') : t('password'))}</label><input class="input" id="pw" type="password" autocomplete="current-password" required></div>
     <div class="form-error" id="lerr">${esc(msg)}</div>
     <button class="btn primary block" type="submit" id="lbtn">${esc(t('login'))}</button>
-    <div class="login-foot"><a href="#" id="forgot">${esc(t('forgot'))}</a><span>Авесто Гуруҳ</span></div>
+    <div class="login-foot">${S.api.keyLogin ? `<span>${esc(t('keyHint'))}</span>` : `<a href="#" id="forgot">${esc(t('forgot'))}</a>`}<span>Авесто Гуруҳ</span></div>
   </form></div>`;
   const lang_s = $('.login-card .lang'); lang_s.style.cssText = 'border-color:var(--line-strong)';
   $$('.login-card .lang button').forEach(b => b.style.color = b.classList.contains('on') ? '#fff' : 'var(--text-2)');
   bindLang($('#app'), () => renderLogin());
   $('#login-form').onsubmit = async e => {
     e.preventDefault(); $('#lbtn').disabled = true; $('#lerr').textContent = '';
-    try { await S.api.signIn($('#em').value.trim(), $('#pw').value); S.user = await S.api.getUser(); await enter(); }
+    try { await S.api.signIn($('#em')?.value.trim(), $('#pw').value); S.user = await S.api.getUser(); await enter(); }
     catch (err) { $('#lerr').textContent = err.message || String(err); $('#lbtn').disabled = false; }
   };
-  $('#forgot').onclick = async e => {
+  if ($('#forgot')) $('#forgot').onclick = async e => {
     e.preventDefault(); const em = $('#em').value.trim(); if (!em) { $('#em').focus(); return; }
     try { await S.api.resetPassword(em); $('#lerr').style.color = 'var(--accent)'; $('#lerr').textContent = t('resetSent'); } catch (err) { $('#lerr').textContent = err.message; }
   };
@@ -401,6 +405,7 @@ function renderShell() {
         <div class="spacer"></div>
         <button class="btn" id="exp">${IC.xls}${esc(t('exportXlsx'))}</button>
         ${S.api.local ? `<button class="btn" id="reimp">${IC.xls}${esc(t('reimport'))}</button><input type="file" id="reimpf" accept=".xlsx,.xls,.pdf" multiple hidden>` : ''}
+        ${S.api.sheets && canEdit() && S.api._folder ? `<a class="btn" href="${esc(S.api._folder)}" target="_blank" rel="noopener">${IC.ext}${esc(t('pdfFolder'))}</a>` : ''}
         ${canEdit() ? `<button class="btn" id="imp">${IC.up}${esc(t('importPdf'))}</button><button class="btn primary" id="newc">${IC.plus}${esc(t('newCompany'))}</button>` : ''}
       </div>
       <div class="chips" id="chips"></div>
@@ -562,7 +567,7 @@ async function renderAudit(v) {
     bindView();
   } catch (e) { v.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
 }
-function diffKeys(a) { if (!a.old_data || !a.new_data) return a.table_name === 'reg_extracts' ? [fmtDate((a.new_data || a.old_data).extract_date)] : []; return Object.keys(a.new_data).filter(k => !['updated_at', 'updated_by'].includes(k) && JSON.stringify(a.new_data[k]) !== JSON.stringify(a.old_data[k])); }
+function diffKeys(a) { if (a.fields != null) return [a.fields]; if (!a.old_data || !a.new_data) return a.table_name === 'reg_extracts' ? [fmtDate((a.new_data || a.old_data).extract_date)] : []; return Object.keys(a.new_data).filter(k => !['updated_at', 'updated_by'].includes(k) && JSON.stringify(a.new_data[k]) !== JSON.stringify(a.old_data[k])); }
 const roleOpts = sel => ['viewer', 'editor', 'admin'].map(r => `<option value="${r}" ${sel === r ? 'selected' : ''}>${esc(t('r' + r[0].toUpperCase() + r.slice(1)))}</option>`).join('');
 async function renderUsers(v) {
   v.innerHTML = '<div class="card empty"><div class="spinner" style="margin:auto"></div></div>';
@@ -743,9 +748,9 @@ function bindEdit(d, c, isNew) {
     const bn = readRows('bn-edit', BN_COLS);
     $('#dsave', d).disabled = true;
     try {
-      const saved = await S.api.saveCompany(isNew ? null : c.id, patch);
-      await S.api.replaceRows('reg_shareholders', saved.id, sh);
-      await S.api.replaceRows('reg_beneficiaries', saved.id, bn);
+      let saved;
+      if (S.api.saveCompanyFull) saved = await S.api.saveCompanyFull(isNew ? null : c.id, patch, sh, bn, S.byId);
+      else { saved = await S.api.saveCompany(isNew ? null : c.id, patch); await S.api.replaceRows('reg_shareholders', saved.id, sh); await S.api.replaceRows('reg_beneficiaries', saved.id, bn); }
       S.openId = saved.id; S.editing = false; toast(t('saved')); await reload();
     } catch (e) { $('#eerr', d).textContent = e.message; $('#dsave', d).disabled = false; }
   };
