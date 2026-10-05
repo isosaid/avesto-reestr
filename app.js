@@ -47,6 +47,7 @@ const I18N = {
     accessKey: 'Калиди дастрасӣ', keyHint: 'Калидро аз администратор гиред', pdfFolder: 'Папкаи PDF', openSheet: 'Google Sheets',
     editMode: 'Режими таҳрир', tokenTitle: 'Режими таҳрир (GitHub-токен)', tokenOn: 'Режими таҳрир фаъол аст', tokenOff: 'Хомӯш кардан', tokenSave: 'Фаъол кардан',
     tokenHelp: 'Барои таҳрир ва бор кардани PDF токени GitHub лозим аст: github.com → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: танҳо avesto-reestr → Permissions → Contents: Read and write. Токен танҳо дар ҳамин браузер нигоҳ дошта мешавад.',
+    needEdit: 'Форма пур шуд. Барои сабт дар феҳристи умумӣ як бор токенро ворид кунед — сабт худаш нигоҳ дошта мешавад.',
     themeToggle: 'Мавзӯъ', legendFull: '100% дар гурӯҳ', legendPartial: '50–99%', legendMinor: 'то 50%', groupOwned: 'ҳиссаи Авесто Гуруҳ',
   },
   ru: {
@@ -83,6 +84,7 @@ const I18N = {
     accessKey: 'Ключ доступа', keyHint: 'Ключ выдаёт администратор', pdfFolder: 'Папка PDF', openSheet: 'Google Sheets',
     editMode: 'Режим правки', tokenTitle: 'Режим правки (GitHub-токен)', tokenOn: 'Режим правки включён', tokenOff: 'Выключить', tokenSave: 'Включить',
     tokenHelp: 'Для правки и загрузки PDF нужен токен GitHub: github.com → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: только avesto-reestr → Permissions → Contents: Read and write. Токен хранится только в этом браузере.',
+    needEdit: 'Форма заполнена. Чтобы записать её в общий реестр, один раз введите токен — запись сохранится сама.',
     themeToggle: 'Тема', legendFull: '100% в группе', legendPartial: '50–99%', legendMinor: 'до 50%', groupOwned: 'доля Авесто Гуруҳ',
   },
 };
@@ -414,6 +416,7 @@ function renderShell() {
         <button class="btn" id="exp">${IC.xls}${esc(t('exportXlsx'))}</button>
         ${S.api.local || (S.api.cloud && canEdit()) ? `<button class="btn" id="reimp">${IC.xls}${esc(t('reimport'))}</button><input type="file" id="reimpf" accept=".xlsx,.xls,.pdf" multiple hidden>` : ''}
         ${S.api.sheets && canEdit() && S.api._folder ? `<a class="btn" href="${esc(S.api._folder)}" target="_blank" rel="noopener">${IC.ext}${esc(t('pdfFolder'))}</a>` : ''}
+        ${S.api.cloud && !canEdit() ? `<button class="btn primary" id="newlock">${IC.plus}${esc(t('newCompany'))}</button>` : ''}
         ${canEdit() ? `<button class="btn" id="imp">${IC.up}${esc(t('importPdf'))}</button><button class="btn primary" id="newc">${IC.plus}${esc(t('newCompany'))}</button>` : ''}
       </div>
       <div class="chips" id="chips"></div>
@@ -426,6 +429,7 @@ function renderShell() {
   if (S.api.local) $('#clear').onclick = async e => { const b = e.currentTarget; if (!b.dataset.armed) { b.dataset.armed = 1; toast(t('confirmClear'), true); setTimeout(() => delete b.dataset.armed, 5000); return; } await S.api.clear(); closeDrawer(); renderWelcome(); };
   else $('#logout').onclick = async () => { await S.api.signOut(); S.user = null; renderLogin(); };
   if (S.api.cloud) $('#editkey').onclick = openTokenDialog;
+  if ($('#newlock')) $('#newlock').onclick = () => { S.openId = 'new'; S.editing = true; renderDrawer(); };   // форма открывается сразу; право записи спросим при сохранении
   if ($('#reimp')) { $('#reimp').onclick = () => $('#reimpf').click(); $('#reimpf').onchange = e => { localImport([...e.target.files], true); e.target.value = ''; }; }
   $('#theme').onclick = () => { const cur = store.get('reg.theme', ''); const next = cur === 'dark' ? 'light' : cur === 'light' ? '' : 'dark'; store.set('reg.theme', next); applyTheme(); };
   const q = $('#q');
@@ -602,13 +606,14 @@ function bindView() {
 }
 
 /* ================= Режим правки (облако) ================= */
-function openTokenDialog() {
+function openTokenDialog(after) {
+  const thenNew = typeof after === 'function';
   const on = S.api.hasToken();
   const m = modal(`<div class="modal-card" style="width:min(560px,100%)"><div class="modal-head"><span style="color:var(--accent)">${IC.key}</span><h3>${esc(t('tokenTitle'))}</h3><button class="icon-btn" data-close>${IC.x}</button></div>
-    <div class="modal-body">${on ? `<div class="issue info"><b>✓ ${esc(t('tokenOn'))}</b></div>` : ''}<p class="muted" style="margin-top:0">${esc(t('tokenHelp'))}</p>
+    <div class="modal-body">${on ? `<div class="issue info"><b>✓ ${esc(t('tokenOn'))}</b></div>` : ''}${thenNew ? `<div class="issue warn"><b>${esc(t('needEdit'))}</b></div>` : ''}<p class="muted" style="margin-top:0">${esc(t('tokenHelp'))}</p>
       <input class="input mono" id="tok" type="password" placeholder="github_pat_…" autocomplete="off"><div class="form-error" id="tokerr"></div></div>
     <div class="modal-foot">${on ? `<button class="btn danger" id="tokoff">${esc(t('tokenOff'))}</button>` : ''}<button class="btn" data-close>${esc(t('close'))}</button><button class="btn primary" id="tokok">${esc(t('tokenSave'))}</button></div></div>`);
-  const apply = async v => { try { $('#tokok', m).disabled = true; await S.api.setToken(v); S.profile = await S.api.profile(); m._close(); renderShell(); toast(v ? t('tokenOn') : t('saved')); } catch (e) { $('#tokerr', m).textContent = e.message; $('#tokok', m).disabled = false; } };
+  const apply = async v => { try { $('#tokok', m).disabled = true; await S.api.setToken(v); S.profile = await S.api.profile(); m._close(); renderShell(); toast(v ? t('tokenOn') : t('saved')); if (v && thenNew && canEdit()) after(); } catch (e) { $('#tokerr', m).textContent = e.message; $('#tokok', m).disabled = false; } };
   $('#tokok', m).onclick = () => apply($('#tok', m).value);
   if (on) $('#tokoff', m).onclick = () => apply('');
 }
@@ -767,6 +772,8 @@ function bindEdit(d, c, isNew) {
     const byName = new Map(S.companies.map(x => [normName(x.name), x.id]));
     const sh = readRows('sh-edit', SH_COLS).map(r => ({ ...r, owner_company_id: byName.get(normName(r.name)) ?? null }));
     const bn = readRows('bn-edit', BN_COLS);
+    // облако: форму заполнить может любой, но записать в общий реестр — только с правом записи; спрашиваем его здесь и сразу досохраняем
+    if (S.api.cloud && !S.api.hasToken()) { openTokenDialog(() => $('#dsave', d).click()); return; }
     $('#dsave', d).disabled = true;
     try {
       let saved;
