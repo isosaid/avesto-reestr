@@ -5,6 +5,10 @@ export const CONFIG = {
   // Google Sheets: URL веб-приложения Apps Script (…/exec). Если задан — данные берутся из Google Таблицы.
   SHEETS_URL: '',
 
+  // Облако без сервера: зашифрованные данные и PDF в этом же репозитории GitHub (файлы store.*).
+  // Чтение — по паролю; правка — по паролю + GitHub-токену с правом записи.
+  STORE: { repo: 'isosaid/avesto-reestr', branch: 'main' },
+
   SUPABASE_URL: 'https://YOUR-PROJECT-REF.supabase.co',
   SUPABASE_ANON_KEY: 'YOUR-ANON-PUBLIC-KEY',
 

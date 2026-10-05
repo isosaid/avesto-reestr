@@ -2,6 +2,7 @@
 import { CONFIG } from './config.js';
 import { makeLocalApi } from './local.js';
 import { makeSheetsApi } from './sheets.js';
+import { makeCloudApi } from './cloud.js';
 
 const LIB = {
   supabase: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm',
@@ -44,6 +45,8 @@ const I18N = {
     welcomeNeedXlsx: 'Файли Excel (.xlsx) лозим аст', localMode: 'Режими локалӣ', localHint: 'маълумот танҳо дар ин браузер', reimport: 'Навсозӣ аз Excel',
     clearData: 'Тоза кардани маълумот', confirmClear: 'Ҳама маълумот ва PDF-ҳо аз ин браузер нест мешаванд. Боварӣ доред? Бори дигар пахш кунед.', imported: 'Бор шуд: {0} ҷамъият', reading: 'Хондан…',
     accessKey: 'Калиди дастрасӣ', keyHint: 'Калидро аз администратор гиред', pdfFolder: 'Папкаи PDF', openSheet: 'Google Sheets',
+    editMode: 'Режими таҳрир', tokenTitle: 'Режими таҳрир (GitHub-токен)', tokenOn: 'Режими таҳрир фаъол аст', tokenOff: 'Хомӯш кардан', tokenSave: 'Фаъол кардан',
+    tokenHelp: 'Барои таҳрир ва бор кардани PDF токени GitHub лозим аст: github.com → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: танҳо avesto-reestr → Permissions → Contents: Read and write. Токен танҳо дар ҳамин браузер нигоҳ дошта мешавад.',
     themeToggle: 'Мавзӯъ', legendFull: '100% дар гурӯҳ', legendPartial: '50–99%', legendMinor: 'то 50%', groupOwned: 'ҳиссаи Авесто Гуруҳ',
   },
   ru: {
@@ -78,6 +81,8 @@ const I18N = {
     welcomeNeedXlsx: 'Нужен файл Excel (.xlsx)', localMode: 'Локальный режим', localHint: 'данные только в этом браузере', reimport: 'Обновить из Excel',
     clearData: 'Очистить данные', confirmClear: 'Все данные и PDF будут удалены из этого браузера. Точно? Нажмите ещё раз.', imported: 'Загружено: {0} компаний', reading: 'Чтение…',
     accessKey: 'Ключ доступа', keyHint: 'Ключ выдаёт администратор', pdfFolder: 'Папка PDF', openSheet: 'Google Sheets',
+    editMode: 'Режим правки', tokenTitle: 'Режим правки (GitHub-токен)', tokenOn: 'Режим правки включён', tokenOff: 'Выключить', tokenSave: 'Включить',
+    tokenHelp: 'Для правки и загрузки PDF нужен токен GitHub: github.com → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: только avesto-reestr → Permissions → Contents: Read and write. Токен хранится только в этом браузере.',
     themeToggle: 'Тема', legendFull: '100% в группе', legendPartial: '50–99%', legendMinor: 'до 50%', groupOwned: 'доля Авесто Гуруҳ',
   },
 };
@@ -165,6 +170,7 @@ const IC = {
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
   moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+  key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9m-3 3 2.5 2.5M14 9l2 2"/></svg>',
   out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 12H3m0 0 4-4m-4 4 4 4M13 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/></svg>',
   mark: '<svg viewBox="0 0 32 32" width="22" height="22"><path d="M9 23V9h14v14M9 14h14M9 18.5h14M14 9v14" stroke="#34d399" stroke-width="2" fill="none"/></svg>',
   alert: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0"/></svg>',
@@ -176,6 +182,7 @@ const isLocalMode = () => CONFIG.MODE === 'local' || !CONFIG.SUPABASE_URL || /YO
 async function makeApi() {
   if (window.__MOCK_API__) return window.__MOCK_API__;
   if (CONFIG.SHEETS_URL && !new URLSearchParams(location.search).has('local')) return makeSheetsApi(CONFIG.SHEETS_URL);
+  if (CONFIG.STORE?.repo && !new URLSearchParams(location.search).has('local')) return makeCloudApi(CONFIG.STORE, async () => { if (!window.XLSX) await loadScript(LIB.xlsx); return window.XLSX; });
   if (isLocalMode()) return makeLocalApi(async () => { if (!window.XLSX) await loadScript(LIB.xlsx); return window.XLSX; });
   const { createClient } = await import(LIB.supabase);
   const sb = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
@@ -339,7 +346,7 @@ function renderLogin(msg = '') {
     <div style="display:flex;justify-content:space-between;align-items:center"><div class="brand-mark">${IC.mark}</div>${langSwitch()}</div>
     <h1>${esc(t('appTitle'))}</h1><p>${esc(t('loginSub'))}</p>
     ${S.api.keyLogin ? '' : `<div class="field"><label for="em">${esc(t('email'))}</label><input class="input" id="em" type="email" autocomplete="username" required></div>`}
-    <div class="field"><label for="pw">${esc(S.api.keyLogin ? t('accessKey') : t('password'))}</label><input class="input" id="pw" type="password" autocomplete="current-password" required></div>
+    <div class="field"><label for="pw">${esc(S.api.cloud ? t('password') : S.api.keyLogin ? t('accessKey') : t('password'))}</label><input class="input" id="pw" type="password" autocomplete="current-password" required></div>
     <div class="form-error" id="lerr">${esc(msg)}</div>
     <button class="btn primary block" type="submit" id="lbtn">${esc(t('login'))}</button>
     <div class="login-foot">${S.api.keyLogin ? `<span>${esc(t('keyHint'))}</span>` : `<a href="#" id="forgot">${esc(t('forgot'))}</a>`}<span>Авесто Гуруҳ</span></div>
@@ -380,7 +387,7 @@ async function reload() { prepare(await S.api.loadAll()); update(); if (S.openId
 function renderShell() {
   document.documentElement.lang = lang === 'ru' ? 'ru' : 'tg';
   document.title = `${t('appTitle')} · Авесто Гуруҳ`;
-  const who = S.api.local ? t('localMode') : (S.profile.full_name || S.profile.email || S.user.email);
+  const who = S.api.cloud ? 'Авесто Гуруҳ' : S.api.local ? t('localMode') : (S.profile.full_name || S.profile.email || S.user.email);
   const tabs = [['registry', t('tabRegistry')], ['tree', t('tabTree')], ['checks', t('tabChecks')]];
   if (canEdit()) tabs.push(['audit', t('tabAudit')]);
   if (isAdmin()) tabs.push(['users', t('tabUsers')]);
@@ -392,7 +399,8 @@ function renderShell() {
     <div class="spacer"></div>
     <div class="top-actions">${langSwitch()}
       <button class="icon-btn" id="theme" title="${esc(t('themeToggle'))}">${IC.moon}</button>
-      <div class="user-chip"><div class="avatar">${esc(initials(who))}</div><div class="nm"><div style="font-weight:600;line-height:1.1">${esc(who)}</div><div class="role-badge">${S.api.local ? esc(t('localHint')) : esc(t('r' + S.profile.role[0].toUpperCase() + S.profile.role.slice(1)))}</div></div>
+      <div class="user-chip"><div class="avatar">${esc(initials(who))}</div><div class="nm"><div style="font-weight:600;line-height:1.1">${esc(who)}</div><div class="role-badge">${S.api.cloud ? esc(canEdit() ? t('rEditor') : t('rViewer')) : S.api.local ? esc(t('localHint')) : esc(t('r' + S.profile.role[0].toUpperCase() + S.profile.role.slice(1)))}</div></div>
+      ${S.api.cloud ? `<button class="icon-btn" id="editkey" title="${esc(t('editMode'))}" style="${S.api.hasToken() ? 'color:#6ee7b7' : ''}">${IC.key}</button>` : ''}
       ${S.api.local ? `<button class="icon-btn" id="clear" title="${esc(t('clearData'))}">${IC.trash}</button>` : `<button class="icon-btn" id="logout" title="${esc(t('logout'))}">${IC.out}</button>`}</div>
     </div></div></header>
   <main class="page">
@@ -404,7 +412,7 @@ function renderShell() {
         <span class="result-count" id="rc"></span>
         <div class="spacer"></div>
         <button class="btn" id="exp">${IC.xls}${esc(t('exportXlsx'))}</button>
-        ${S.api.local ? `<button class="btn" id="reimp">${IC.xls}${esc(t('reimport'))}</button><input type="file" id="reimpf" accept=".xlsx,.xls,.pdf" multiple hidden>` : ''}
+        ${S.api.local || (S.api.cloud && canEdit()) ? `<button class="btn" id="reimp">${IC.xls}${esc(t('reimport'))}</button><input type="file" id="reimpf" accept=".xlsx,.xls,.pdf" multiple hidden>` : ''}
         ${S.api.sheets && canEdit() && S.api._folder ? `<a class="btn" href="${esc(S.api._folder)}" target="_blank" rel="noopener">${IC.ext}${esc(t('pdfFolder'))}</a>` : ''}
         ${canEdit() ? `<button class="btn" id="imp">${IC.up}${esc(t('importPdf'))}</button><button class="btn primary" id="newc">${IC.plus}${esc(t('newCompany'))}</button>` : ''}
       </div>
@@ -417,7 +425,8 @@ function renderShell() {
   $$('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set('reg.tab', S.tab); $$('[data-tab]').forEach(x => x.classList.toggle('active', x === b)); update(); });
   if (S.api.local) $('#clear').onclick = async e => { const b = e.currentTarget; if (!b.dataset.armed) { b.dataset.armed = 1; toast(t('confirmClear'), true); setTimeout(() => delete b.dataset.armed, 5000); return; } await S.api.clear(); closeDrawer(); renderWelcome(); };
   else $('#logout').onclick = async () => { await S.api.signOut(); S.user = null; renderLogin(); };
-  if (S.api.local) { $('#reimp').onclick = () => $('#reimpf').click(); $('#reimpf').onchange = e => { localImport([...e.target.files], true); e.target.value = ''; }; }
+  if (S.api.cloud) $('#editkey').onclick = openTokenDialog;
+  if ($('#reimp')) { $('#reimp').onclick = () => $('#reimpf').click(); $('#reimpf').onchange = e => { localImport([...e.target.files], true); e.target.value = ''; }; }
   $('#theme').onclick = () => { const cur = store.get('reg.theme', ''); const next = cur === 'dark' ? 'light' : cur === 'light' ? '' : 'dark'; store.set('reg.theme', next); applyTheme(); };
   const q = $('#q');
   q.oninput = () => { S.q = q.value; S.terms = normName(S.q).split(' ').filter(Boolean); update(); };
@@ -590,6 +599,18 @@ function bindView() {
   $$('[data-toggle]', v).forEach(b => b.onclick = e => { e.stopPropagation(); const id = b.dataset.toggle; S.collapsed.has(id) ? S.collapsed.delete(id) : S.collapsed.add(id); update(); });
   $$('[data-open]', v).forEach(r => r.onclick = () => openDrawer(r.dataset.open));
   $$('th[data-sort]', v).forEach(th => th.onclick = () => { const k = th.dataset.sort; if (!k) return; if (S.sort.key === k) S.sort.dir *= -1; else S.sort = { key: k, dir: 1 }; update(); });
+}
+
+/* ================= Режим правки (облако) ================= */
+function openTokenDialog() {
+  const on = S.api.hasToken();
+  const m = modal(`<div class="modal-card" style="width:min(560px,100%)"><div class="modal-head"><span style="color:var(--accent)">${IC.key}</span><h3>${esc(t('tokenTitle'))}</h3><button class="icon-btn" data-close>${IC.x}</button></div>
+    <div class="modal-body">${on ? `<div class="issue info"><b>✓ ${esc(t('tokenOn'))}</b></div>` : ''}<p class="muted" style="margin-top:0">${esc(t('tokenHelp'))}</p>
+      <input class="input mono" id="tok" type="password" placeholder="github_pat_…" autocomplete="off"><div class="form-error" id="tokerr"></div></div>
+    <div class="modal-foot">${on ? `<button class="btn danger" id="tokoff">${esc(t('tokenOff'))}</button>` : ''}<button class="btn" data-close>${esc(t('close'))}</button><button class="btn primary" id="tokok">${esc(t('tokenSave'))}</button></div></div>`);
+  const apply = async v => { try { $('#tokok', m).disabled = true; await S.api.setToken(v); S.profile = await S.api.profile(); m._close(); renderShell(); toast(v ? t('tokenOn') : t('saved')); } catch (e) { $('#tokerr', m).textContent = e.message; $('#tokok', m).disabled = false; } };
+  $('#tokok', m).onclick = () => apply($('#tok', m).value);
+  if (on) $('#tokoff', m).onclick = () => apply('');
 }
 
 /* ================= PDF viewer ================= */

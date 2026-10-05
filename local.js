@@ -169,15 +169,20 @@ const fileDel = k => op('files', 'readwrite', (s, m) => s ? s.delete(k) : void m
 const clearAll = async () => { await op('kv', 'readwrite', (s, m) => s ? s.clear() : m.clear()); await op('files', 'readwrite', (s, m) => s ? s.clear() : m.clear()); };
 
 /* ================= Local API (тот же интерфейс, что Supabase API) ================= */
-export async function makeLocalApi(loadXLSX) {
-  let db = await kvGet('db') || null;
+const idbStorage = { loadDb: () => kvGet('db'), saveDb: db => kvSet('db', db), getFile: fileGet, putFile: fileSet, delFile: fileDel, clear: clearAll };
+/** storage — где лежат данные: IndexedDB (по умолчанию) или зашифрованное облако (cloud.js). opts: { cloud, who(), role() } */
+export async function makeLocalApi(loadXLSX, storage = idbStorage, opts = {}) {
+  let db = await storage.loadDb() || null;
+  const who = () => (opts.who ? opts.who() : 'локально');
   const user = { id: 'local', email: 'локально' };
-  const save = () => kvSet('db', db);
+  // не удалось сохранить (нет прав / кто-то изменил раньше) → возвращаем состояние из хранилища, чтобы экран не врал
+  const save = async () => { try { await storage.saveDb(db); } catch (e) { db = await storage.loadDb().catch(() => db); throw e; } };
   const clone = x => JSON.parse(JSON.stringify(x));
-  const log = (table_name, action, old_data, new_data) => { db.audit.unshift({ id: Date.now() + Math.random(), table_name, action, old_data, new_data, row_id: (new_data || old_data).id, user_email: 'локально', created_at: new Date().toISOString() }); db.audit = db.audit.slice(0, 1000); };
+  const log = (table_name, action, old_data, new_data) => { db.audit.unshift({ id: Date.now() + Math.random(), table_name, action, old_data, new_data, row_id: (new_data || old_data).id, user_email: who(), created_at: new Date().toISOString() }); db.audit = db.audit.slice(0, 1000); };
   const urls = new Map();
   return {
-    local: true,
+    local: !opts.cloud,
+    async refresh() { db = await storage.loadDb() || db; },
     hasData: () => !!db,
     async importExcel(file) {
       const XLSX = await loadXLSX();
@@ -189,31 +194,41 @@ export async function makeLocalApi(loadXLSX) {
       await save();
       return { count: db.companies.length, sections: db.sections.length };
     },
-    async clear() { await clearAll(); db = null; },
+    async clear() { await storage.clear(); db = null; },
     source: () => db?.source,
     async getUser() { return user; },
     onAuth() {},
     async signIn() {}, async signOut() {}, async resetPassword() {}, async updatePassword() {},
-    async profile() { return { user_id: 'local', email: 'локально', role: 'editor', full_name: 'Режими локалӣ' }; },
-    async loadAll() { return clone({ sections: db.sections, companies: viewCompanies(db), shareholders: db.shareholders, beneficiaries: db.beneficiaries, extracts: db.extracts }); },
+    async profile() { return { user_id: 'local', email: who(), role: opts.role ? opts.role() : 'editor', full_name: 'Режими локалӣ' }; },
+    async loadAll() { if (opts.cloud) await this.refresh(); return clone({ sections: db.sections, companies: viewCompanies(db), shareholders: db.shareholders, beneficiaries: db.beneficiaries, extracts: db.extracts }); },
     async signedUrl(path) {
       if (urls.has(path)) return urls.get(path);
-      const blob = await fileGet(path); if (!blob) throw new Error('Файл не найден в браузере');
+      const blob = await storage.getFile(path); if (!blob) throw new Error('Файл не найден в браузере');
       const u = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob], { type: 'application/pdf' })); urls.set(path, u); return u;
     },
     async uploadExtract(company, file, date) {
       const path = `${company.code}/${date}_${Date.now().toString(36)}.pdf`;
-      await fileSet(path, new Blob([await file.arrayBuffer()], { type: 'application/pdf' }));
+      await storage.putFile(path, new Blob([await file.arrayBuffer()], { type: 'application/pdf' }));
       const row = { id: uid(), company_id: company.id, extract_date: date, storage_path: path, file_name: file.name, file_size: file.size, created_at: new Date().toISOString() };
       db.extracts.push(row); log('reg_extracts', 'INSERT', null, row);
       const c = db.companies.find(x => x.id === company.id); if (c && (!c.extract_date || c.extract_date <= date)) c.extract_date = date;
       await save(); return clone(row);
     },
-    async deleteExtract(ex) { db.extracts = db.extracts.filter(x => x.id !== ex.id); await fileDel(ex.storage_path); log('reg_extracts', 'DELETE', ex, null); await save(); },
+    async deleteExtract(ex) { db.extracts = db.extracts.filter(x => x.id !== ex.id); log('reg_extracts', 'DELETE', ex, null); await save(); await storage.delFile(ex.storage_path).catch(() => {}); },
     async saveCompany(id, patch) {
       if (id) { const c = db.companies.find(x => x.id === id); const old = clone(c); Object.assign(c, patch); log('reg_companies', 'UPDATE', old, clone(c)); await save(); return clone(c); }
       if (db.companies.some(x => x.code === patch.code)) throw new Error(`Компания с № ${patch.code} уже есть`);
       const c = { id: 'c-' + patch.code, ...patch }; db.companies.push(c); log('reg_companies', 'INSERT', null, clone(c)); await save(); return clone(c);
+    },
+    // карточка + учредители + бенефициары одним сохранением (в облаке = один коммит)
+    async saveCompanyFull(id, patch, sh, bn) {
+      let c;
+      if (id) { c = db.companies.find(x => x.id === id); const old = clone(c); Object.assign(c, patch); log('reg_companies', 'UPDATE', old, clone(c)); }
+      else { if (db.companies.some(x => x.code === patch.code)) throw new Error(`Компания с № ${patch.code} уже есть`); c = { id: 'c-' + patch.code, ...patch }; db.companies.push(c); log('reg_companies', 'INSERT', null, clone(c)); }
+      const rows = (list) => list.map((r, i) => ({ id: uid(), ...r, company_id: c.id, sort_order: i }));
+      db.shareholders = db.shareholders.filter(x => x.company_id !== c.id).concat(rows(sh));
+      db.beneficiaries = db.beneficiaries.filter(x => x.company_id !== c.id).concat(rows(bn));
+      await save(); return clone(c);
     },
     async replaceRows(table, companyId, rows) {
       const nr = rows.map((r, i) => ({ id: uid(), ...r, company_id: companyId, sort_order: i }));
