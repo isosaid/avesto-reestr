@@ -297,7 +297,9 @@ mark { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 1px; 
 .toast { background: var(--head); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow-lg); animation: pop .2s; }
 .toast.err { background: var(--danger); }
 
-.footer { text-align: center; color: var(--text-3); font-size: 11.5px; margin-top: 24px; }
+.footer { text-align: center; color: var(--text-2); font-size: 13px; margin-top: 28px; padding-bottom: 8px; }
+.footer b { color: var(--link); font-weight: 700; }
+.footer .isj { display: inline-block; background: #4f46e5; color: #fff; font-weight: 800; font-size: 11.5px; letter-spacing: .04em; padding: 3px 9px; border-radius: 7px; vertical-align: 1px; }
 
 @media (max-width: 900px) {
   .topbar-in { flex-wrap: wrap; padding: 10px 16px; gap: 10px; }

@@ -419,7 +419,7 @@ function renderShell() {
       <div class="chips" id="chips"></div>
     </div>
     <section id="view"></section>
-    <div class="footer">Авесто Гуруҳ · ${esc(t('appTitle'))} · Supabase</div>
+    <div class="footer">Разработано <b>Отделом автоматизации</b> холдинга ООО «Авесто Групп» · <span class="isj">ISJ</span></div>
   </main>`;
   bindLang($('.topbar'), () => { renderShell(); if (S.openId) renderDrawer(); });
   $$('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; store.set('reg.tab', S.tab); $$('[data-tab]').forEach(x => x.classList.toggle('active', x === b)); update(); });
