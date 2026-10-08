@@ -170,16 +170,23 @@ table.reg { border-collapse: separate; border-spacing: 0; width: 100%; font-size
 .reg tr.row:hover td { background: var(--surface-2); }
 .reg tr.row.sel td { background: var(--link-soft); }
 .reg .c-code { position: sticky; left: 0; z-index: 2; width: 70px; font-family: var(--mono); color: var(--text-2); white-space: nowrap; }
-.reg .c-name { position: sticky; left: 70px; z-index: 2; min-width: 230px; max-width: 280px; box-shadow: 1px 0 0 var(--line); }
+.reg .c-name { position: sticky; left: 70px; z-index: 2; min-width: 230px; max-width: 300px; box-shadow: 1px 0 0 var(--line); }
 .reg th.c-code, .reg th.c-name { z-index: 4; }
 .reg .name { font-weight: 700; color: var(--text); }
 .reg .depth { display: inline-block; }
 .reg .sub { color: var(--text-3); font-size: 11.5px; margin-top: 2px; }
-.reg tr.section td { background: var(--section); color: var(--section-text); font-weight: 800; font-size: 11.5px; letter-spacing: .02em; padding: 7px 12px; position: sticky; left: 0; }
+.reg tr.section td { background: var(--section); color: var(--section-text); font-weight: 800; font-size: 11.5px; letter-spacing: .02em; padding: 7px 12px; }
+/* заголовок раздела остаётся видимым при горизонтальной прокрутке широкой таблицы */
+.reg tr.section .sec-t { position: sticky; left: 12px; display: inline-block; }
 .reg tr.section.subsec td { background: color-mix(in srgb, var(--section) 45%, var(--surface)); font-weight: 700; padding-left: 28px; }
 .reg tr.section td .n { font-family: var(--mono); font-weight: 600; opacity: .7; margin-left: 8px; }
-.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; max-width: 260px; min-width: 160px; }
-.clamp.w { max-width: 320px; min-width: 200px; }
+/* ячейки показываются целиком, без обрезки «…» */
+.cell { white-space: pre-line; min-width: 180px; max-width: 300px; word-break: break-word; }
+.cell.w { min-width: 260px; max-width: 420px; }
+.board { min-width: 220px; max-width: 320px; }
+.board .bl-role { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--text-3); margin-top: 6px; }
+.board .bl-role:first-child { margin-top: 0; }
+.board .bl-item { padding: 1px 0; }
 .cap { font-family: var(--mono); white-space: nowrap; font-size: 12px; }
 .cap.bad { background: var(--danger-soft); color: var(--danger); font-weight: 700; box-shadow: inset 3px 0 0 var(--danger); }
 .cap-pct { font-size: 10.5px; color: var(--danger); font-weight: 600; }

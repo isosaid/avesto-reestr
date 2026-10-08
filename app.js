@@ -33,7 +33,7 @@ const I18N = {
     del: 'Нест кардан', confirmDel: 'Иқтибосро нест кунем?', noExtracts: 'Иқтибос бор нашудааст', notes: 'Эзоҳ', history: 'Таърихи тағйирот', showHistory: 'Нишон додан',
     edit: 'Таҳрир', save: 'Нигоҳ доштан', cancel: 'Бекор', close: 'Пӯшидан', saved: 'Нигоҳ дошта шуд', uploaded: 'Иқтибос бор шуд', deleted: 'Нест карда шуд',
     position: 'Вазифа', director: 'Роҳбар', phone: 'Телефон', section: 'Бахш', parent: 'Ҷамъияти асосӣ', addRow: '+ Сатр', name: 'Ном', code: 'Рақам (№)',
-    effShare: 'Ҳиссаи самаранок', groupShare: 'ҳиссаи гурӯҳ', typeRoot: 'асосӣ', typeFull: 'фаръии 100%', typePartial: 'вобаста',
+    effShare: 'Ҳиссаи бенефитсиар', groupShare: 'ҳисса', typeRoot: 'асосӣ', typeFull: 'ҳисса 100%', typePartial: 'вобаста',
     impTitle: 'Бор кардани иқтибосҳо (PDF)', impDrop: '<b>Файлҳои PDF-ро ба ин ҷо кашед</b> ё пахш кунед', impHint: 'Ҷамъият аз рӯи рақам дар номи файл (масалан «1.2. … 13.04.2026.pdf») ва РМА дар дохили PDF муайян мешавад',
     impFile: 'Файл', impCompany: 'Ҷамъият', impDate: 'Сана', impStatus: 'Ҳолат', impGo: 'Бор кардан ({0})', impOkRma: 'РМА мувофиқ', impByCode: 'аз рӯи рақам', impRmaDiff: 'РМА фарқ мекунад',
     impNoMatch: 'ёфт нашуд', impExists: 'аллакай ҳаст', impDone: 'бор шуд', impErr: 'хато', impReading: 'хондан…', impUploading: 'бор шуда истодааст…', choose: '— интихоб —',
@@ -70,7 +70,7 @@ const I18N = {
     del: 'Удалить', confirmDel: 'Удалить выписку?', noExtracts: 'Выписка не загружена', notes: 'Примечание', history: 'История изменений', showHistory: 'Показать',
     edit: 'Редактировать', save: 'Сохранить', cancel: 'Отмена', close: 'Закрыть', saved: 'Сохранено', uploaded: 'Выписка загружена', deleted: 'Удалено',
     position: 'Должность', director: 'Руководитель', phone: 'Телефон', section: 'Раздел', parent: 'Материнская', addRow: '+ Строка', name: 'Имя', code: 'Номер (№)',
-    effShare: 'Эффективная доля', groupShare: 'доля группы', typeRoot: 'головная', typeFull: 'дочерняя 100%', typePartial: 'зависимая',
+    effShare: 'Доля бенефициара', groupShare: 'доля', typeRoot: 'головная', typeFull: 'доля 100%', typePartial: 'зависимая',
     impTitle: 'Загрузка выписок (PDF)', impDrop: '<b>Перетащите PDF-файлы сюда</b> или нажмите', impHint: 'Компания определяется по номеру в имени файла («1.2. … 13.04.2026.pdf») и по РМА внутри PDF',
     impFile: 'Файл', impCompany: 'Компания', impDate: 'Дата', impStatus: 'Статус', impGo: 'Загрузить ({0})', impOkRma: 'РМА совпал', impByCode: 'по номеру', impRmaDiff: 'РМА не совпал',
     impNoMatch: 'не найдено', impExists: 'уже есть', impDone: 'загружено', impErr: 'ошибка', impReading: 'чтение…', impUploading: 'загрузка…', choose: '— выбрать —',
@@ -491,6 +491,20 @@ function renderChips() {
 const kpiName = f => ({ full: t('kFull'), partial: t('kPartial'), unformed: t('kUnformed'), nofile: t('noFile'), old: t('kOld'), issues: t('kIssues') }[f]);
 
 /* ================= Registry table ================= */
+// «1. … 2. …» → каждая позиция с новой строки (учредители, бенефициары, виды деятельности)
+const byNumbers = t => String(t ?? '').replace(/;\s*/g, '; ').replace(/\s+(\d{1,2}\.\s)/g, '\n$1').trim();
+// Шӯрои нозирон: «раиси …: 1. А; аъзо: 2. Б; 3. В» → роль отдельной строкой, каждый член — отдельной строкой
+function boardLines(t) {
+  if (!t) return [];
+  return String(t).replace(/;/g, ' ')
+    .replace(/\s*((?:раиси|аъзои?)(?:\s+Шӯрои\s+нозирон)?\s*:)\s*/gi, '\n$1\n')
+    .replace(/\s+(\d{1,2}\.\s)/g, '\n$1')
+    .split('\n').map(x => x.trim()).filter(Boolean);
+}
+const boardHtml = (t, T = []) => { const l = boardLines(t); return l.length ? `<div class="board">${l.map(x => /:$/.test(x) ? `<div class="bl-role">${hl(x.replace(/:$/, ''), T)}</div>` : `<div class="bl-item">${hl(x, T)}</div>`).join('')}</div>` : '<span class="muted">—</span>'; };
+const execHtml = (c, T) => `<div class="cell"><b>${hl(c.director, T)}</b><div class="sub">${hl(c.position, T)}</div>${c.email ? `<div class="sub">${hl(c.email, T)}</div>` : ''}${c.phone ? `<div class="sub">${hl(c.phone, T)}</div>` : ''}${S.view === 'full' && extraExec(c) ? `<div class="sub" style="margin-top:4px">${hl(extraExec(c), T)}</div>` : ''}</div>`;
+// второй руководитель (напр. «директори тиҷоратӣ») — только он, без повторения первого
+const extraExec = c => { const m = String(c.executive || '').replace(/\s+/g, ' ').match(/(директори тиҷоратӣ|муовини директори генералӣ|иҷрокунандаи вазифаи[^-–]*)\s*[-–]\s*.+$/i); return m ? m[0].replace(/\s*[-–]\s*/, ' — ').replace(/\s*номери телефон:\s*$/i, '').replace(/\s*почтаи электронӣ:\s*/i, '\n').replace(/\s*номери телефон:\s*/i, '\n').trim() : ''; };
 const shareSummary = (rows, terms) => rows.map(s => `<div>${hl(s.name, terms)} <b class="mono">${round2(s.share_pct)}%</b></div>`).join('');
 function extractCell(c) {
   if (c.extract_path) {
@@ -504,14 +518,14 @@ const COLS = [
   { k: 'name', l: 'cName', cls: 'c-name', sort: c => normName(c.name), r: (c, T) => `<div class="name">${'<span class="depth" style="width:' + Math.max(0, (c.depth - 1) * 10) + 'px"></span>'}${hl(c.name, T)}${c.issues.length ? `<span class="flags">${[...new Set(c.issues.map(i => i.ch.sev))].map(s => `<i class="flag ${s}"></i>`).join('')}</span>` : ''}</div><div class="sub">${esc(c.type === 'root' ? t('typeRoot') : c.type === 'full' ? t('typeFull') : `${t('groupShare')} ${round2(c.groupDirect)}%`)}</div>` },
   { k: 'rma', l: 'cRma', cls: 'mono nowrap', sort: c => c.rma, r: (c, T) => hl(c.rma, T) },
   { k: 'founded', l: 'cFounded', cls: 'mono nowrap', sort: c => c.founded_on || '', r: c => `${esc(fmtDate(c.founded_on))}${c.reregistered_on ? `<div class="sub">(${esc(fmtDate(c.reregistered_on))})</div>` : ''}` },
-  { k: 'address', l: 'cAddress', full: true, r: (c, T) => `<div class="clamp">${hl(c.legal_address, T)}</div>` },
-  { k: 'activity', l: 'cActivity', full: true, r: (c, T) => `<div class="clamp">${hl(c.activity, T)}</div>` },
+  { k: 'address', l: 'cAddress', full: true, r: (c, T) => `<div class="cell">${hl(c.legal_address, T)}</div>` },
+  { k: 'activity', l: 'cActivity', full: true, r: (c, T) => `<div class="cell w">${hl(byNumbers(c.activity), T)}</div>` },
   { k: 'declared', l: 'cDeclared', cls: 'num', sort: c => Number(c.capital_declared || 0), r: c => { const bad = c.capital_declared > 0 && (c.capital_formed ?? 0) < c.capital_declared; return `<span class="cap">${fmtNum(c.capital_declared)}</span>`; }, td: c => (c.capital_declared > 0 && (c.capital_formed ?? 0) < c.capital_declared ? 'cap bad' : 'cap') },
   { k: 'formed', l: 'cFormed', cls: 'num', sort: c => Number(c.capital_formed || 0), r: c => { const bad = c.capital_declared > 0 && (c.capital_formed ?? 0) < c.capital_declared; return `${fmtNum(c.capital_formed)}${bad ? `<div class="cap-pct">${Math.round((c.capital_formed || 0) / c.capital_declared * 100)}%</div>` : ''}`; }, td: c => (c.capital_declared > 0 && (c.capital_formed ?? 0) < c.capital_declared ? 'cap bad' : 'cap') },
-  { k: 'founders', l: 'cFounders', r: (c, T) => S.view === 'full' ? `<div class="clamp w">${hl(c.founders, T)}</div>` : `<div class="clamp">${shareSummary(c.sh, T)}</div>` },
-  { k: 'exec', l: 'cExecutive', r: (c, T) => S.view === 'full' ? `<div class="clamp w">${hl(c.executive, T)}</div>` : `<div class="clamp"><b>${hl(c.director, T)}</b><div class="sub">${hl(c.position, T)}</div><div class="sub">${hl([c.email, c.phone].filter(Boolean).join(' · '), T)}</div></div>` },
-  { k: 'board', l: 'cBoard', full: true, r: (c, T) => `<div class="clamp">${hl(c.supervisory_board || '—', T)}</div>` },
-  { k: 'benef', l: 'cBenef', r: (c, T) => S.view === 'full' ? `<div class="clamp w">${hl(c.beneficiary || '—', T)}</div>` : (c.bn.length ? `<div class="clamp">${shareSummary(c.bn, T)}</div>` : '<span class="muted">—</span>') },
+  { k: 'founders', l: 'cFounders', r: (c, T) => S.view === 'full' ? `<div class="cell w">${hl(byNumbers(c.founders), T)}</div>` : `<div class="cell">${shareSummary(c.sh, T)}</div>` },
+  { k: 'exec', l: 'cExecutive', r: (c, T) => execHtml(c, T) },
+  { k: 'board', l: 'cBoard', r: (c, T) => boardHtml(c.supervisory_board, T) },
+  { k: 'benef', l: 'cBenef', r: (c, T) => S.view === 'full' ? `<div class="cell w">${hl(byNumbers(c.beneficiary) || '—', T)}</div>` : (c.bn.length ? `<div class="cell">${shareSummary(c.bn, T)}</div>` : '<span class="muted">—</span>') },
   { k: 'extract', l: 'cExtract', sort: c => c.extract_date || '', r: c => extractCell(c) },
 ];
 function renderTable(rows) {
@@ -527,7 +541,7 @@ function renderTable(rows) {
     // как в Excel: заголовок раздела — один раз, при первом появлении; после блока дочерних не повторяется
     if (byCode && S.sort.dir > 0 && c.section_id !== lastSec) {
       lastSec = c.section_id; const sec = S.sections.find(s => s.id === c.section_id);
-      if (sec && c.code !== '0' && !shown.has(sec.id)) { shown.add(sec.id); body += `<tr class="section ${c.depth > 1 ? 'subsec' : ''}"><td colspan="${cols.length}">${esc(sec.title)}<span class="n">${rows.filter(x => x.section_id === sec.id).length}</span></td></tr>`; }
+      if (sec && c.code !== '0' && !shown.has(sec.id)) { shown.add(sec.id); body += `<tr class="section ${c.depth > 1 ? 'subsec' : ''}"><td colspan="${cols.length}"><span class="sec-t">${esc(sec.title)}<span class="n">${rows.filter(x => x.section_id === sec.id).length}</span></span></td></tr>`; }
     }
     body += `<tr class="row ${S.openId === c.id ? 'sel' : ''}" data-open="${c.id}">${cols.map(col => `<td class="${col.cls || ''} ${col.td ? col.td(c) : ''}">${col.r(c, T)}</td>`).join('')}</tr>`;
   }
@@ -718,7 +732,7 @@ function viewCard(c) {
     <div class="blk"><h4>${esc(t('management'))}</h4>${kv([[t('position'), esc(c.position)], [t('director'), `<b>${esc(c.director)}</b>`]])}
       <div class="contact">${c.email ? `<a href="mailto:${esc(c.email)}">${IC.mail}${esc(c.email)}</a>` : ''}${c.phone ? `<a href="tel:${esc(c.phone.replace(/[^\d+]/g, ''))}">${IC.phone}${esc(c.phone)}</a>` : ''}</div>
       ${c.executive ? `<details style="margin-top:10px"><summary class="muted" style="cursor:pointer;font-size:12px">${esc(t('officialText'))}</summary><div style="white-space:pre-line;font-size:12.5px;margin-top:6px">${esc(c.executive)}</div></details>` : ''}</div>
-    <div class="blk"><h4>${esc(t('board'))}</h4><div style="white-space:pre-line">${esc(c.supervisory_board || '—')}</div></div>
+    <div class="blk"><h4>${esc(t('board'))}</h4>${boardHtml(c.supervisory_board)}</div>
     ${c.children.length ? `<div class="blk"><h4>${esc(t('subsidiaries'))} · ${c.children.length}</h4><ul class="ext-list">${c.children.map(k => `<li data-open="${k.id}" style="cursor:pointer"><span class="mono muted" style="min-width:52px">${esc(k.code)}</span><span class="int-link" style="flex:1">${esc(k.name)}</span><span class="share ${k.groupDirect >= 99.99 ? '' : k.groupDirect >= 50 ? 'partial' : 'minor'}">${round2(k.groupDirect)}%</span></li>`).join('')}</ul></div>` : ''}
     ${canEdit() ? `<div class="blk"><h4>${esc(t('history'))}<span class="spacer"></span><button class="btn" id="hist">${esc(t('showHistory'))}</button></h4><div id="histbox"></div></div>` : ''}`;
 }
