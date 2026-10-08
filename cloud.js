@@ -3,7 +3,7 @@
 // Чтение — любому, кто знает пароль. Запись — тому, у кого ещё и GitHub-токен с правом записи в репозиторий.
 import { makeLocalApi } from './local.js';
 
-export const STORE = { meta: 'store.meta.json', db: 'store.db.enc', file: p => 'store.f.' + String(p).replace(/[^\w.-]+/g, '_') + '.enc' };
+export const STORE = { meta: 'store.meta.json', db: 'store.db.enc', edit: 'store.edit.json', file: p => 'store.f.' + String(p).replace(/[^\w.-]+/g, '_') + '.enc' };
 const CHECK = 'avesto-reestr';
 const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = s => { const bin = atob(s.replace(/\s/g, '')); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
@@ -115,6 +115,27 @@ export async function makeCloudApi(cfg, loadXLSX) {
       token = t; ls.set('reg.ghToken', t);
       const u = await fetch(`${cfg.api || 'https://api.github.com'}/user`, { headers: { Authorization: `Bearer ${t}` } }).then(x => x.ok ? x.json() : null).catch(() => null);
       login = u?.login || j.owner?.login || null; ls.set('reg.ghLogin', login);
+    },
+    /** админ (с токеном) задаёт пароль правки: токен шифруется этим паролем и кладётся в репозиторий */
+    async setEditPassword(pw) {
+      pw = String(pw || '');
+      if (!token) throw new Error('Сначала включите правку токеном GitHub');
+      if (pw.length < 8) throw new Error('Пароль правки — не короче 8 символов');
+      const salt = b64(crypto.getRandomValues(new Uint8Array(16))), iter = 600000;
+      const k = await deriveKey(pw, salt, iter);
+      const body = JSON.stringify({ v: 1, kdf: 'PBKDF2-SHA256', iter, salt, ct: b64(await encrypt(k, enc.encode(token))) });
+      const cur = await readBytes(STORE.edit, true).catch(() => null);
+      await writeBytes(STORE.edit, enc.encode(body), cur?.sha || null, 'Реестр: пароль правки');
+    },
+    /** редактор вводит пароль правки → расшифровываем токен из репозитория → включаем правку */
+    async unlockEdit(pw) {
+      const f = await readBytes(STORE.edit, true);
+      if (!f) throw new Error('Пароль правки ещё не задан администратором');
+      const m = JSON.parse(dec.decode(f.bytes));
+      let t;
+      try { t = dec.decode(await decrypt(await deriveKey(String(pw || ''), m.salt, m.iter), unb64(m.ct))); }
+      catch { throw new Error('Пароли таҳрир нодуруст / Неверный пароль правки'); }
+      await api.setToken(t);
     },
   };
   for (const m of ['hasData', 'importExcel', 'source', 'profile', 'loadAll', 'signedUrl', 'uploadExtract', 'deleteExtract', 'saveCompany', 'saveCompanyFull', 'replaceRows', 'audit', 'profiles', 'setRole', 'addMember', 'removeMember', 'refresh'])

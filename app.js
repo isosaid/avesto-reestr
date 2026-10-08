@@ -47,7 +47,8 @@ const I18N = {
     accessKey: 'Калиди дастрасӣ', keyHint: 'Калидро аз администратор гиред', pdfFolder: 'Папкаи PDF', openSheet: 'Google Sheets',
     editMode: 'Режими таҳрир', tokenTitle: 'Режими таҳрир (GitHub-токен)', tokenOn: 'Режими таҳрир фаъол аст', tokenOff: 'Хомӯш кардан', tokenSave: 'Фаъол кардан',
     tokenHelp: 'Барои таҳрир ва бор кардани PDF токени GitHub лозим аст: github.com → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: танҳо avesto-reestr → Permissions → Contents: Read and write. Токен танҳо дар ҳамин браузер нигоҳ дошта мешавад.',
-    needEdit: 'Форма пур шуд. Барои сабт дар феҳристи умумӣ як бор токенро ворид кунед — сабт худаш нигоҳ дошта мешавад.',
+    needEdit: 'Форма пур шуд. Барои сабт пароли таҳририро ворид кунед — сабт худаш нигоҳ дошта мешавад.',
+    editPw: 'Пароли таҳрир', adminToken: 'Барои администратор: токени GitHub', setEditPw: 'Пароли таҳрирро муқаррар / иваз кардан', min8: 'на камтар аз 8 аломат', setEditPwHelp: 'Ин паролро ба касоне диҳед, ки бояд феҳристро таҳрир кунанд. Пароли нав пароли кӯҳнаро бекор мекунад.', editPwSaved: 'Пароли таҳрир нигоҳ дошта шуд',
     themeToggle: 'Мавзӯъ', legendFull: '100% дар гурӯҳ', legendPartial: '50–99%', legendMinor: 'то 50%', groupOwned: 'ҳиссаи Авесто Гуруҳ',
   },
   ru: {
@@ -84,7 +85,8 @@ const I18N = {
     accessKey: 'Ключ доступа', keyHint: 'Ключ выдаёт администратор', pdfFolder: 'Папка PDF', openSheet: 'Google Sheets',
     editMode: 'Режим правки', tokenTitle: 'Режим правки (GitHub-токен)', tokenOn: 'Режим правки включён', tokenOff: 'Выключить', tokenSave: 'Включить',
     tokenHelp: 'Для правки и загрузки PDF нужен токен GitHub: github.com → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: только avesto-reestr → Permissions → Contents: Read and write. Токен хранится только в этом браузере.',
-    needEdit: 'Форма заполнена. Чтобы записать её в общий реестр, один раз введите токен — запись сохранится сама.',
+    needEdit: 'Форма заполнена. Чтобы записать её, введите пароль правки — запись сохранится сама.',
+    editPw: 'Пароль правки', adminToken: 'Для администратора: токен GitHub', setEditPw: 'Задать / сменить пароль правки', min8: 'не короче 8 символов', setEditPwHelp: 'Этот пароль дайте тем, кто должен править реестр. Новый пароль отменяет старый.', editPwSaved: 'Пароль правки сохранён',
     themeToggle: 'Тема', legendFull: '100% в группе', legendPartial: '50–99%', legendMinor: 'до 50%', groupOwned: 'доля Авесто Гуруҳ',
   },
 };
@@ -623,13 +625,27 @@ function bindView() {
 function openTokenDialog(after) {
   const thenNew = typeof after === 'function';
   const on = S.api.hasToken();
-  const m = modal(`<div class="modal-card" style="width:min(560px,100%)"><div class="modal-head"><span style="color:var(--accent)">${IC.key}</span><h3>${esc(t('tokenTitle'))}</h3><button class="icon-btn" data-close>${IC.x}</button></div>
-    <div class="modal-body">${on ? `<div class="issue info"><b>✓ ${esc(t('tokenOn'))}</b></div>` : ''}${thenNew ? `<div class="issue warn"><b>${esc(t('needEdit'))}</b></div>` : ''}<p class="muted" style="margin-top:0">${esc(t('tokenHelp'))}</p>
-      <input class="input mono" id="tok" type="password" placeholder="github_pat_…" autocomplete="off"><div class="form-error" id="tokerr"></div></div>
-    <div class="modal-foot">${on ? `<button class="btn danger" id="tokoff">${esc(t('tokenOff'))}</button>` : ''}<button class="btn" data-close>${esc(t('close'))}</button><button class="btn primary" id="tokok">${esc(t('tokenSave'))}</button></div></div>`);
-  const apply = async v => { try { $('#tokok', m).disabled = true; await S.api.setToken(v); S.profile = await S.api.profile(); m._close(); renderShell(); toast(v ? t('tokenOn') : t('saved')); if (v && thenNew && canEdit()) after(); } catch (e) { $('#tokerr', m).textContent = e.message; $('#tokok', m).disabled = false; } };
-  $('#tokok', m).onclick = () => apply($('#tok', m).value);
-  if (on) $('#tokoff', m).onclick = () => apply('');
+  const m = modal(`<div class="modal-card" style="width:min(560px,100%)"><div class="modal-head"><span style="color:var(--accent)">${IC.key}</span><h3>${esc(t('editMode'))}</h3><button class="icon-btn" data-close>${IC.x}</button></div>
+    <div class="modal-body">
+      ${thenNew ? `<div class="issue warn"><b>${esc(t('needEdit'))}</b></div>` : ''}
+      ${on ? `<div class="issue info"><b>✓ ${esc(t('tokenOn'))}</b></div>
+        <div class="field" style="margin-top:12px"><label>${esc(t('setEditPw'))}</label><input class="input" id="newpw" type="password" autocomplete="new-password" placeholder="${esc(t('min8'))}"></div>
+        <p class="muted" style="margin-top:0;font-size:12.5px">${esc(t('setEditPwHelp'))}</p>`
+      : `<div class="field"><label>${esc(t('editPw'))}</label><input class="input" id="editpw" type="password" autocomplete="current-password"></div>
+        <details style="margin-top:10px"><summary class="muted" style="cursor:pointer;font-size:12.5px">${esc(t('adminToken'))}</summary>
+          <p class="muted" style="font-size:12.5px">${esc(t('tokenHelp'))}</p><input class="input mono" id="tok" type="password" placeholder="github_pat_…" autocomplete="off">
+          <button class="btn" id="tokok" style="margin-top:8px">${esc(t('tokenSave'))}</button></details>`}
+      <div class="form-error" id="tokerr"></div></div>
+    <div class="modal-foot">${on ? `<button class="btn danger" id="tokoff">${esc(t('tokenOff'))}</button><button class="btn" data-close>${esc(t('close'))}</button><button class="btn primary" id="setpw">${esc(t('save'))}</button>`
+      : `<button class="btn" data-close>${esc(t('close'))}</button><button class="btn primary" id="unlock">${esc(t('login'))}</button>`}</div></div>`);
+  const err = e => { $('#tokerr', m).textContent = e.message; $$('button', m).forEach(b => b.disabled = false); };
+  const done = msg => { m._close(); renderShell(); toast(msg); if (thenNew && canEdit()) after(); };
+  const busy = () => $$('.modal-foot button, #tokok', m).forEach(b => b.disabled = true);
+  const enable = async fn => { try { busy(); await fn(); S.profile = await S.api.profile(); done(t('tokenOn')); } catch (e) { err(e); } };
+  if ($('#unlock', m)) { $('#unlock', m).onclick = () => enable(() => S.api.unlockEdit($('#editpw', m).value)); $('#editpw', m).onkeydown = e => { if (e.key === 'Enter') $('#unlock', m).click(); }; setTimeout(() => $('#editpw', m)?.focus(), 50); }
+  if ($('#tokok', m)) $('#tokok', m).onclick = () => enable(() => S.api.setToken($('#tok', m).value));
+  if ($('#setpw', m)) $('#setpw', m).onclick = async () => { try { busy(); await S.api.setEditPassword($('#newpw', m).value); m._close(); toast(t('editPwSaved')); } catch (e) { err(e); } };
+  if ($('#tokoff', m)) $('#tokoff', m).onclick = async () => { await S.api.setToken(''); S.profile = await S.api.profile(); m._close(); renderShell(); toast(t('saved')); };
 }
 
 /* ================= PDF viewer ================= */
