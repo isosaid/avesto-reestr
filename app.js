@@ -563,13 +563,12 @@ function renderTree() {
       <span class="code">${esc(c.code === '0' ? '' : c.code)}</span>
       <span><div class="nm">${esc(c.name)}</div><div class="meta">${esc(fmtShort(c.capital_declared))} · РМА ${esc(c.rma)}${kids.length ? ` · ${kids.length} ${esc(t('subsidiaries')).toLowerCase()}` : ''}</div></span>
       ${direct != null ? `<span class="share ${shareCls(direct)}" title="${esc(t('groupOwned'))}">${round2(direct)}%</span>` : ''}
-      ${c.code !== '0' && Math.abs(c.eff - direct) > .01 ? `<span class="share minor" title="${esc(t('effShare'))}">eff ${round2(c.eff)}%</span>` : ''}
       ${c.extract_path ? `<button class="icon-btn" data-pdf="${c.id}" title="${esc(t('openPdf'))} ${esc(fmtDate(c.extract_date))}">${IC.pdf}</button>` : ''}
       ${c.issues.some(i => i.ch.sev === 'error') ? `<i class="flag error" title="${esc(t('kIssues'))}"></i>` : ''}
     </div>${kids.length && !col ? `<ul>${kids.map(node).join('')}</ul>` : ''}</li>`;
   };
   const orphans = S.companies.filter(c => c.code !== '0' && !S.byCode.has(c.parent_code));
-  return `<div class="card"><div class="legend"><span><span class="share">100%</span> ${esc(t('legendFull'))}</span><span><span class="share partial">50–99%</span> ${esc(t('legendPartial'))}</span><span><span class="share minor">&lt;50%</span> ${esc(t('legendMinor'))}</span><span>eff — ${esc(t('effShare'))} (${esc(CONFIG.ULTIMATE_OWNER)})</span></div>
+  return `<div class="card"><div class="legend"><span><span class="share">100%</span> ${esc(t('legendFull'))}</span><span><span class="share partial">50–99%</span> ${esc(t('legendPartial'))}</span><span><span class="share minor">&lt;50%</span> ${esc(t('legendMinor'))}</span></div>
     <div class="tree"><ul>${node(root)}${orphans.map(node).join('')}</ul></div></div>`;
 }
 
